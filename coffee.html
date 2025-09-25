@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Coffee TDS & Extraction Yield Calculator</title>
+<style>
+  :root {
+    --bg: #0f172a; /* slate-900 */
+    --panel: #111827; /* gray-900 */
+    --muted: #94a3b8; /* slate-400 */
+    --text: #e5e7eb; /* gray-200 */
+    --accent: #22d3ee; /* cyan-400 */
+    --accent-2: #a78bfa; /* violet-400 */
+    --ok: #34d399; /* green-400 */
+    --warn: #f59e0b; /* amber-500 */
+    --bad: #f87171; /* red-400 */
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:linear-gradient(180deg,#0b1220, #0f172a 30%, #0b1220); color:var(--text); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+  header { padding: 24px 16px; text-align:center; }
+  h1 { margin:0; font-size: clamp(1.4rem, 1.2rem + 1.2vw, 2rem); letter-spacing:.3px; }
+  .sub { color:var(--muted); margin-top:8px; font-size: .95rem; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; display:grid; gap:16px; grid-template-columns: 1fr; }
+  @media (min-width: 980px){ main { grid-template-columns: 1fr 1fr; } }
+  .card { background: rgba(17,24,39,.7); border: 1px solid rgba(148,163,184,.15); border-radius:16px; padding:18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); backdrop-filter: blur(6px); }
+  .card h2 { margin:0 0 12px; font-size: 1.15rem; }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  label { font-size:.9rem; color:var(--muted); display:block; margin-bottom:6px; }
+  .field-title { font-size:.9rem; color:var(--muted); margin:0 0 6px; }
+  input, select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(148,163,184,.2); background:#0b1220; color:var(--text); outline:none; }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,.15); }
+  .out { font-weight:600; font-size:1.1rem; padding:10px 12px; border-radius:10px; background:#0b1220; border:1px dashed rgba(148,163,184,.3); }
+  .hint { color:var(--muted); font-size:.85rem; margin-top:6px; }
+  .pill { display:inline-block; padding:6px 10px; border-radius:999px; background: rgba(167,139,250,.15); border:1px solid rgba(167,139,250,.35); color:#ddd; font-size:.8rem; }
+  .sep { height:1px; background: linear-gradient(90deg, transparent, rgba(148,163,184,.25), transparent); margin: 14px 0; }
+  .foot { grid-column: 1/-1; color:var(--muted); text-align:center; padding: 6px 0 18px; font-size:.85rem; }
+  button { cursor:pointer; padding:10px 12px; border-radius:10px; border:1px solid rgba(148,163,184,.25); background:#111827; color:var(--text); }
+  button:hover { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,.1); }
+  table { width:100%; border-collapse: collapse; }
+  th, td { text-align:right; padding:8px 10px; border-bottom:1px dashed rgba(148,163,184,.2); }
+  th { text-align:right; color:var(--muted); font-weight:500; }
+  .tag { font-size:.8rem; color:var(--muted); }
+  .range-head { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+  .badge { padding:4px 8px; border-radius:8px; border:1px solid rgba(148,163,184,.25); color:var(--muted); font-size:.8rem; }
+  .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
+  .small { font-size:.85rem; }
+  .success { color: var(--ok); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Coffee Strength (TDS) & Extraction Yield — Single‑File Calculator</h1>
+    <div class="sub">Handheld refractometer friendly • Works offline • Adjustable Brix→TDS factor</div>
+  </header>
+  
+  <main>
+    <!-- CARD 1: Brix -> TDS (and inverse) -->
+    <section class="card">
+      <h2>1) Brix ⇄ TDS</h2>
+      <div class="row">
+        <div>
+          <label for="bx">Measured Brix (°Bx)</label>
+          <input id="bx" type="number" step="0.01" min="0" placeholder="e.g., 1.35" />
+          <div class="hint">Enter your PAL‑1 reading. We'll convert to TDS using the factor below.</div>
+        </div>
+        <div>
+          <p class="field-title">Estimated TDS (%)</p>
+          <div class="out" id="tdsOut" role="status" aria-live="polite">—</div>
+          <div class="hint">TDS (%) ≈ <span id="kView">0.85</span> × Brix</div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <div>
+          <label for="tdsIn">Or enter TDS (%)</label>
+          <input id="tdsIn" type="number" step="0.01" min="0" placeholder="e.g., 1.35" />
+        </div>
+        <div>
+          <p class="field-title">Estimated Brix (°Bx)</p>
+          <div class="out" id="bxOut" role="status" aria-live="polite">—</div>
+          <div class="hint">Brix ≈ TDS (%) ÷ <span id="kView2">0.85</span></div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <div>
+          <label for="k">Brix→TDS factor (editable)</label>
+          <input id="k" type="number" step="0.01" min="0.5" max="1.0" value="0.85" />
+          <div class="hint">Default 0.85. You can calibrate this for your beans/method.</div>
+        </div>
+        <div class="grid-3">
+          <button type="button" data-preset="0.84">Set 0.84</button>
+          <button type="button" data-preset="0.85">Set 0.85</button>
+          <button type="button" data-preset="0.86">Set 0.86</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARD 2: Extraction Yield Calculator -->
+    <section class="card">
+      <h2>2) Extraction Yield</h2>
+      <div class="row">
+        <div>
+          <label for="dose">Dose mass (g) — dry coffee</label>
+          <input id="dose" type="number" step="0.1" min="0" value="18" />
+        </div>
+        <div>
+          <label for="bev">Beverage mass (g) — in cup/shot</label>
+          <input id="bev" type="number" step="0.1" min="0" value="36" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <label for="tdsForEY">TDS (%) <span class="tag">(or enter Brix below)</span></label>
+          <input id="tdsForEY" type="number" step="0.01" min="0" value="9.0" />
+          <div class="hint">If you only have Brix, enter it below and we'll convert.</div>
+        </div>
+        <div>
+          <label for="bxForEY">Brix (°Bx) → TDS</label>
+          <input id="bxForEY" type="number" step="0.01" min="0" placeholder="optional" />
+          <div class="hint">Uses the factor above (<span id="kView3">0.85</span>).</div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <div>
+          <p class="field-title">Extraction Yield (%)</p>
+          <div class="out" id="eyOut" role="status" aria-live="polite">—</div>
+        </div>
+        <div>
+          <div class="hint">Formula: <span class="pill">EY (%) = TDS (%) × Beverage(g) ÷ Dose(g)</span></div>
+          <div class="hint">Typical target band often cited: ~18–22% (style‑dependent).</div>
+          <div id="eyFlag" class="hint"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARD 3: Quick Tables -->
+    <section class="card">
+      <h2>3) Quick Table — Brewed (0.8–3.0 °Bx)</h2>
+      <div class="range-head">
+        <div class="badge">Resolution: 0.1 °Bx</div>
+        <div class="small">Factor k = <span id="kView4">0.85</span></div>
+      </div>
+      <div class="sep"></div>
+      <div id="tblBrew"></div>
+      <div class="hint">Use this as a rough strength look‑up for drip/pour‑over.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>4) Quick Table — Espresso (6.0–15.0 °Bx)</h2>
+      <div class="range-head">
+        <div class="badge">Resolution: 0.2 °Bx</div>
+        <div class="small">Factor k = <span id="kView5">0.85</span></div>
+      </div>
+      <div class="sep"></div>
+      <div id="tblEsp"></div>
+      <div class="hint">Use this as a rough strength look‑up for espresso.
+      </div>
+    </section>
+
+    <!-- CARD 5: Dial‑In Grid (optional mini‑planner) -->
+    <section class="card" style="grid-column: 1/-1;">
+      <h2>5) Dial‑In Grid</h2>
+      <div class="row">
+        <div>
+          <label for="ratioList">Ratios to test (beverage : dose)</label>
+          <input id="ratioList" type="text" value="2.0, 2.5, 3.0" />
+          <div class="hint">Comma‑separated (e.g., espresso 2.0–3.0; brewed might be 15, 16, 17, etc.)</div>
+        </div>
+        <div>
+          <label for="tdsList">TDS values to test (%)</label>
+          <input id="tdsList" type="text" value="7, 8.5, 10, 11.5, 13" />
+          <div class="hint">Comma‑separated list (e.g., 1.2, 1.35, 1.5 for brewed)</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <label for="doseGrid">Fixed dose (g)</label>
+          <input id="doseGrid" type="number" step="0.1" value="18" />
+        </div>
+        <div>
+          <label for="eyBand">Show EY band</label>
+          <select id="eyBand">
+            <option value="18-22" selected>18–22%</option>
+            <option value="16-20">16–20%</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" id="customBandRow" style="display:none; margin-top:12px;">
+        <div>
+          <label for="bandLo">Lower (%)</label>
+          <input id="bandLo" type="number" step="0.1" value="18" />
+        </div>
+        <div>
+          <label for="bandHi">Upper (%)</label>
+          <input id="bandHi" type="number" step="0.1" value="22" />
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div id="grid"></div>
+      <div class="hint">Cells show beverage mass (g) and extraction yield for each ratio/TDS combo.</div>
+    </section>
+
+    <div class="foot">Built for handheld refractometers (e.g., Atago PAL‑1). All calculations are client‑side. No data leaves your browser.</div>
+  </main>
+
+<script>
+  (() => {
+    const fmt = (value, decimals = 2) => (Number.isFinite(value) ? Number(value).toFixed(decimals) : '—');
+
+    const els = {
+      bx: document.getElementById('bx'),
+      tdsOut: document.getElementById('tdsOut'),
+      tdsIn: document.getElementById('tdsIn'),
+      bxOut: document.getElementById('bxOut'),
+      factor: document.getElementById('k'),
+      factorButtons: document.querySelector('.grid-3'),
+      kViews: document.querySelectorAll('#kView, #kView2, #kView3, #kView4, #kView5'),
+      dose: document.getElementById('dose'),
+      bev: document.getElementById('bev'),
+      tdsForEY: document.getElementById('tdsForEY'),
+      bxForEY: document.getElementById('bxForEY'),
+      eyOut: document.getElementById('eyOut'),
+      eyFlag: document.getElementById('eyFlag'),
+      ratioList: document.getElementById('ratioList'),
+      tdsList: document.getElementById('tdsList'),
+      doseGrid: document.getElementById('doseGrid'),
+      eyBand: document.getElementById('eyBand'),
+      bandLo: document.getElementById('bandLo'),
+      bandHi: document.getElementById('bandHi'),
+      customBandRow: document.getElementById('customBandRow'),
+      grid: document.getElementById('grid'),
+      tblBrew: document.getElementById('tblBrew'),
+      tblEsp: document.getElementById('tblEsp'),
+    };
+
+    let k = Number.parseFloat(els.factor.value) || 0.85;
+
+    const readNumber = (el) => {
+      if (!el) return null;
+      const value = Number.parseFloat(el.value);
+      return Number.isFinite(value) ? value : null;
+    };
+
+    const setOutput = (el, value, decimals = 2) => {
+      if (!el) return;
+      el.textContent = fmt(value, decimals);
+    };
+
+    const updateFactorViews = () => {
+      els.kViews.forEach((node) => {
+        node.textContent = fmt(k, 2);
+      });
+    };
+
+    const calcTDSfromBrix = () => {
+      const bx = readNumber(els.bx);
+      if (bx == null) {
+        setOutput(els.tdsOut, NaN);
+        return;
+      }
+      setOutput(els.tdsOut, bx * k, 3);
+    };
+
+    const calcBrixfromTDS = () => {
+      const tds = readNumber(els.tdsIn);
+      if (tds == null || k === 0) {
+        setOutput(els.bxOut, NaN);
+        return;
+      }
+      setOutput(els.bxOut, tds / k, 3);
+    };
+
+    const syncEYFromBrix = () => {
+      const bx = readNumber(els.bxForEY);
+      if (bx == null) return;
+      els.tdsForEY.value = (bx * k).toFixed(3);
+      calcEY();
+    };
+
+    const resolveBand = () => {
+      const selection = els.eyBand.value;
+      let lo = 18;
+      let hi = 22;
+
+      if (selection === '16-20') {
+        lo = 16;
+        hi = 20;
+      }
+      if (selection === 'custom') {
+        const maybeLo = readNumber(els.bandLo);
+        const maybeHi = readNumber(els.bandHi);
+        if (maybeLo != null) lo = maybeLo;
+        if (maybeHi != null) hi = maybeHi;
+      }
+
+      return { lo, hi };
+    };
+
+    const calcEY = () => {
+      const dose = readNumber(els.dose);
+      const bev = readNumber(els.bev);
+      const tds = readNumber(els.tdsForEY);
+
+      if (![dose, bev, tds].every((n) => n != null) || (dose ?? 0) <= 0) {
+        setOutput(els.eyOut, NaN);
+        els.eyFlag.textContent = '';
+        els.eyFlag.className = 'hint';
+        return;
+      }
+
+      const extraction = (tds * bev) / dose;
+      setOutput(els.eyOut, extraction, 2);
+
+      const { lo, hi } = resolveBand();
+      let descriptor = 'In range';
+      let cls = 'success';
+
+      if (extraction < lo) {
+        descriptor = 'Under‑extracted';
+        cls = 'warn';
+      } else if (extraction > hi) {
+        descriptor = 'Over‑extracted';
+        cls = 'bad';
+      }
+
+      els.eyFlag.textContent = `Target band ${fmt(lo, 1)}–${fmt(hi, 1)}% • ${descriptor}`;
+      els.eyFlag.className = `hint ${cls}`;
+    };
+
+    const toTable = (rows) => {
+      const head = '<table><thead><tr><th scope="col">°Bx</th><th scope="col">TDS (%)</th></tr></thead><tbody>';
+      const body = rows
+        .map((row) => `<tr><td>${fmt(row.bx, 2)}</td><td>${fmt(row.tds, 3)}</td></tr>`)
+        .join('');
+      return `${head}${body}</tbody></table>`;
+    };
+
+    const renderTables = () => {
+      const brewed = [];
+      for (let bx = 0.8; bx <= 3.0001; bx += 0.1) {
+        brewed.push({ bx, tds: bx * k });
+      }
+
+      const espresso = [];
+      for (let bx = 6.0; bx <= 15.0001; bx += 0.2) {
+        espresso.push({ bx, tds: bx * k });
+      }
+
+      els.tblBrew.innerHTML = toTable(brewed);
+      els.tblEsp.innerHTML = toTable(espresso);
+    };
+
+    const renderGrid = () => {
+      const ratioList = (els.ratioList.value || '')
+        .split(',')
+        .map((s) => Number.parseFloat(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0);
+
+      const tdsList = (els.tdsList.value || '')
+        .split(',')
+        .map((s) => Number.parseFloat(s.trim()))
+        .filter((n) => Number.isFinite(n) && n >= 0);
+
+      const dose = readNumber(els.doseGrid);
+      const selection = els.eyBand.value;
+      els.customBandRow.style.display = selection === 'custom' ? 'grid' : 'none';
+
+      if (!dose || dose <= 0 || ratioList.length === 0 || tdsList.length === 0) {
+        els.grid.innerHTML = '<div class="hint">Enter valid lists and dose.</div>';
+        return;
+      }
+
+      const { lo, hi } = resolveBand();
+
+      const headCells = tdsList.map((tds) => `<th scope="col">${fmt(tds, 2)}% TDS</th>`).join('');
+      let html = `<table><thead><tr><th scope="col" style="text-align:left">Ratio</th>${headCells}</tr></thead><tbody>`;
+
+      ratioList.forEach((ratio) => {
+        html += `<tr><th scope="row" style="text-align:left">${fmt(ratio, 2)} : 1</th>`;
+        tdsList.forEach((tds) => {
+          const beverage = dose * ratio;
+          const extraction = (tds * beverage) / dose;
+          let cellClass = 'success';
+
+          if (extraction < lo) cellClass = 'warn';
+          else if (extraction > hi) cellClass = 'bad';
+
+          html += `<td class="${cellClass}"><div>${fmt(beverage, 0)} g</div><div class="tag">EY ${fmt(extraction, 1)}%</div></td>`;
+        });
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      els.grid.innerHTML = html;
+    };
+
+    const updateFactor = () => {
+      const next = readNumber(els.factor);
+      if (next == null || next <= 0) return;
+      k = next;
+      updateFactorViews();
+      calcTDSfromBrix();
+      calcBrixfromTDS();
+      calcEY();
+      renderTables();
+      renderGrid();
+    };
+
+    const handlePresetClick = (event) => {
+      const button = event.target.closest('[data-preset]');
+      if (!button) return;
+      const value = Number.parseFloat(button.dataset.preset);
+      if (!Number.isFinite(value)) return;
+      els.factor.value = value.toFixed(2);
+      updateFactor();
+    };
+
+    const attachListeners = () => {
+      els.factor.addEventListener('input', updateFactor);
+      if (els.factorButtons) {
+        els.factorButtons.addEventListener('click', handlePresetClick);
+      }
+      els.bx.addEventListener('input', calcTDSfromBrix);
+      els.tdsIn.addEventListener('input', calcBrixfromTDS);
+      els.bxForEY.addEventListener('input', syncEYFromBrix);
+      [els.dose, els.bev, els.tdsForEY].forEach((el) => el.addEventListener('input', calcEY));
+
+      [els.ratioList, els.tdsList, els.doseGrid, els.bandLo, els.bandHi].forEach((el) =>
+        el.addEventListener('input', renderGrid)
+      );
+
+      els.eyBand.addEventListener('change', () => {
+        renderGrid();
+        calcEY();
+      });
+    };
+
+    // Initial paint
+    updateFactorViews();
+    renderTables();
+    renderGrid();
+    calcTDSfromBrix();
+    calcBrixfromTDS();
+    calcEY();
+
+    attachListeners();
+  })();
+</script>
+</body>
+</html>
